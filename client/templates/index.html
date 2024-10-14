@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUSPAY</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            width: 100%;
+
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        h2,
+        h4 {
+            color: #555;
+        }
+
+        hr {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        .audio-list {
+            margin: 20px 0;
+            padding: 0;
+            list-style-type: none;
+        }
+
+        .audio-list li {
+            margin: 10px 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="width: 500px; margin: auto;">
+        <h1>Kannada Audio to Audio System</h1>
+        <hr>
+
+        <h2>Record Your Audio File:</h2>
+
+        <!-- Audio Recording Controls -->
+        <div class="audio-controls">
+            <button id="record-button">Start Recording</button>
+            <button id="stop-button" disabled>Stop Recording</button>
+            <p id="status">Status: Not Recording</p>
+        </div>
+
+        <!-- Hidden form to send the recorded audio to the server -->
+        <form id="upload-audio-form" method="POST" enctype="multipart/form-data">
+            <input type="hidden" id="audio-blob" name="audio" />
+            <input type="hidden" id="audio-filename" name="filename" />
+        </form>
+
+        <hr>
+
+        <h2>Recorded Audio File:</h2>
+        <ul class="audio-list">
+            {% if recorded_files %}
+            {% for file in recorded_files %}
+            <li>
+                <audio controls>
+                    <source src="{{ url_for('serve_recording', filename=file) }}?v={{ loop.index }}" type="audio/wav">
+                    Your browser does not support the audio element.
+                </audio>
+            </li>
+            {% endfor %}
+            {% else %}
+            <li>No recordings found.</li>
+            {% endif %}
+        </ul>
+
+        <hr>
+
+        <h2>Result Audio File:</h2>
+        <h4>Do Refresh...</h4>
+        <ul class="audio-list">
+            {% if result_files %}
+            {% for file in result_files %}
+            <li>
+                <audio controls>
+                    <source src="{{ url_for('serve_result', filename=file) }}?v={{ loop.index }}" type="audio/wav">
+                    Your browser does not support the audio element.
+                </audio>
+            </li>
+            {% endfor %}
+            {% else %}
+            <li>No result audio files found.</li>
+            {% endif %}
+        </ul>
+
+        <div class="footer">
+            <hr>
+            <b>Made with ❤️ at Juspay</b>
+        </div>
+
+        <script>
+            const recordButton = document.getElementById("record-button");
+            const stopButton = document.getElementById("stop-button");
+            const statusLabel = document.getElementById("status");
+            let mediaRecorder;
+            let audioChunks = [];
+
+            // Start Recording
+            recordButton.addEventListener("click", async () => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.onstart = () => {
+                    audioChunks = [];
+                    statusLabel.textContent = "Status: Recording...";
+                    recordButton.disabled = true;
+                    stopButton.disabled = false;
+                };
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+
+                    // Convert blob to file and send to the server
+                    const formData = new FormData();
+                    formData.append("audio", audioBlob, "rec_audio.webm");
+
+                    // Sending the audio to Flask backend
+                    fetch("/", {
+                        method: "POST",
+                        body: formData
+                    }).then(response => {
+                        if (response.ok) {
+                            window.location.reload(); // Refresh the page to display the new audio
+                        }
+                    });
+
+                    statusLabel.textContent = "Status: Not Recording";
+                    recordButton.disabled = false;
+                    stopButton.disabled = true;
+                };
+
+                mediaRecorder.start();
+            });
+
+            // Stop Recording
+            stopButton.addEventListener("click", () => {
+                mediaRecorder.stop();
+            });
+        </script>
+    </div>
+</body>
+
+</html>
